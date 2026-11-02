@@ -1,0 +1,10 @@
+downloads/
+build/
+dist/
+VideoClipper_Portable/
+VideoClipper_Portable.zip
+__pycache__/
+*.pyc
+*.part
+*.spec
+checkpoints/
