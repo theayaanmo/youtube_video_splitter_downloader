@@ -16,6 +16,9 @@ A local web application that allows you to download only a specific timeframe (f
 
 ## 💻 Running the App
 
+### First double click the install.bat file , it will download all the dependancies needed for the app to run.
+(you only need to do it the first time , if you wanna use it again you dont need to do this step again)
+
 ### Option 1: Double-Click Launcher
 Double-click [`run.bat`](file:///C:/Users/kk/Desktop/ytdlp_app/run.bat) in this folder.
 
