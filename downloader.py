@@ -112,20 +112,45 @@ def get_video_info(url: str) -> Dict[str, Any]:
         }
 
 
-def convert_to_mp4(input_path: str) -> str:
+def post_process_mp4(input_path: str, reencode: bool = False) -> str:
     """
-    Ensure the file is a clean, universal MP4 file with zero freeze at 0.00s.
-    Fast re-encodes the video stream with an immediate I-frame and AAC audio.
+    Ensure the output is a pristine MP4 file without audio/video sync freeze.
+    - If reencode is False: fast remux (0.1s) using -c copy -avoid_negative_ts make_zero.
+    - If reencode is True: transcode to H.264 via ultrafast libx264 for universal compatibility.
     """
-    output_path = os.path.splitext(input_path)[0] + "_mp4_temp.mp4"
+    ffmpeg_dir = ensure_ffmpeg_in_path()
+    ffmpeg_exe = os.path.join(ffmpeg_dir, "ffmpeg.exe") if ffmpeg_dir else "ffmpeg"
+    output_path = os.path.splitext(input_path)[0] + "_clean.mp4"
+
     if os.path.exists(output_path):
         os.remove(output_path)
 
-    ffmpeg_dir = ensure_ffmpeg_in_path()
-    ffmpeg_exe = os.path.join(ffmpeg_dir, "ffmpeg.exe") if ffmpeg_dir else "ffmpeg"
+    if not reencode:
+        # Blazing fast stream copy + timestamp fix (removes negative PTS audio/video freeze)
+        cmd = [
+            ffmpeg_exe, "-y",
+            "-i", input_path,
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-avoid_negative_ts", "make_zero",
+            "-movflags", "+faststart",
+            output_path,
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0 and os.path.exists(output_path):
+            final_mp4 = os.path.splitext(input_path)[0] + ".mp4"
+            try:
+                os.remove(input_path)
+            except Exception:
+                pass
+            if os.path.exists(final_mp4):
+                try: os.remove(final_mp4)
+                except Exception: pass
+            os.rename(output_path, final_mp4)
+            return final_mp4
 
-    # -preset ultrafast -crf 18 guarantees instant keyframe at 0.00s with pristine quality
-    cmd = [
+    # Fallback or explicit re-encode to universal H.264
+    cmd_encode = [
         ffmpeg_exe, "-y",
         "-i", input_path,
         "-c:v", "libx264",
@@ -133,22 +158,20 @@ def convert_to_mp4(input_path: str) -> str:
         "-crf", "18",
         "-c:a", "aac",
         "-b:a", "192k",
+        "-avoid_negative_ts", "make_zero",
         "-movflags", "+faststart",
-        output_path
+        output_path,
     ]
-
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if res.returncode == 0 and os.path.exists(output_path):
+    res_enc = subprocess.run(cmd_encode, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if res_enc.returncode == 0 and os.path.exists(output_path):
         final_mp4 = os.path.splitext(input_path)[0] + ".mp4"
         try:
             os.remove(input_path)
         except Exception:
             pass
         if os.path.exists(final_mp4):
-            try:
-                os.remove(final_mp4)
-            except Exception:
-                pass
+            try: os.remove(final_mp4)
+            except Exception: pass
         os.rename(output_path, final_mp4)
         return final_mp4
 
@@ -160,13 +183,18 @@ def download_clip(
     start_time: str,
     end_time: str,
     output_dir: str = "downloads",
-    quality: str = "source",  # "source", "1080p", "720p", "audio_mp3"
+    quality: str = "fast_1080p",
     force_keyframes: bool = False,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> str:
     """
     Download only the specified section of the video and return the resulting file path.
-    Guarantees pure MP4 format with audio & video synced from 0.00 seconds.
+    Supported quality presets:
+      - 'fast_1080p'   : Fast H.264+AAC stream copy up to 1080p (Fastest, zero lag, universal MP4)
+      - 'fast_720p'    : Fast H.264+AAC stream copy up to 720p
+      - 'source_raw'   : Raw pristine 4K/8K stream copy into MP4 (No quality loss, instant)
+      - 'source_h264'  : 4K/8K re-encoded into H.264 MP4 (Universal playback)
+      - 'audio_mp3'    : Audio only MP3
     """
     start_sec = parse_time_to_seconds(start_time)
     end_sec = parse_time_to_seconds(end_time)
@@ -193,13 +221,16 @@ def download_clip(
         "progress_hooks": hook_callbacks,
         "noplaylist": True,
         "windowsfilenames": True,
+        "concurrent_fragment_downloads": 4,
     }
 
     if ffmpeg_dir:
         ydl_opts["ffmpeg_location"] = ffmpeg_dir
 
     is_audio = (quality == "audio_mp3")
+    reencode = (quality == "source_h264")
 
+    # Format selection
     if is_audio:
         ydl_opts["format"] = "bestaudio/best"
         ydl_opts["postprocessors"] = [{
@@ -207,14 +238,23 @@ def download_clip(
             "preferredcodec": "mp3",
             "preferredquality": "192",
         }]
-    elif quality == "1080p":
-        ydl_opts["format"] = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
+    elif quality in ["fast_1080p", "1080p"]:
+        # Prioritize native H.264 (avc1) + AAC (mp4a) for instant stream copying
+        ydl_opts["format"] = (
+            "bestvideo[vcodec^=avc1][height<=1080]+bestaudio[acodec^=mp4a]/"
+            "bestvideo[height<=1080]+bestaudio/"
+            "best[height<=1080]/best"
+        )
         ydl_opts["merge_output_format"] = "mp4"
-    elif quality == "720p":
-        ydl_opts["format"] = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
+    elif quality in ["fast_720p", "720p"]:
+        ydl_opts["format"] = (
+            "bestvideo[vcodec^=avc1][height<=720]+bestaudio[acodec^=mp4a]/"
+            "bestvideo[height<=720]+bestaudio/"
+            "best[height<=720]/best"
+        )
         ydl_opts["merge_output_format"] = "mp4"
     else:
-        # True Source (up to 4K / 8K)
+        # Source up to 4K / 8K
         ydl_opts["format"] = "bestvideo+bestaudio/best"
         ydl_opts["merge_output_format"] = "mp4"
 
@@ -250,8 +290,8 @@ def download_clip(
     if not final_filepath:
         raise FileNotFoundError("Could not determine downloaded file location.")
 
-    # Convert non-MP4 video files or MKVs to clean MP4
+    # Apply fast post-processing to fix negative PTS timestamps and ensure MP4 container
     if not is_audio:
-        final_filepath = convert_to_mp4(final_filepath)
+        final_filepath = post_process_mp4(final_filepath, reencode=reencode)
 
     return str(final_filepath)

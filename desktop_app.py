@@ -111,18 +111,19 @@ class VideoClipperApp:
         opt_grid.pack(fill=tk.X)
 
         ttk.Label(opt_grid, text="Quality:").grid(row=0, column=0, sticky=tk.W, padx=(0, 6))
-        self.quality_var = tk.StringVar(value="Source MP4 (Up to 4K)")
+        self.quality_var = tk.StringVar(value="Fast 1080p MP4 (Recommended)")
         quality_cb = ttk.Combobox(
             opt_grid,
             textvariable=self.quality_var,
             values=[
-                "Source MP4 (Up to 4K)",
-                "1080p Full HD MP4",
-                "720p HD MP4",
+                "Fast 1080p MP4 (Recommended)",
+                "Fast 720p MP4",
+                "Source 4K/8K MP4 (Original Codec - Fast)",
+                "Source 4K MP4 (Re-encoded H.264)",
                 "Audio Only MP3",
             ],
             state="readonly",
-            width=22,
+            width=28,
         )
         quality_cb.grid(row=0, column=1, sticky=tk.W, padx=(0, 20))
 
@@ -218,9 +219,10 @@ class VideoClipperApp:
             return
 
         q_map = {
-            "Source MP4 (Up to 4K)": "source",
-            "1080p Full HD MP4": "1080p",
-            "720p HD MP4": "720p",
+            "Fast 1080p MP4 (Recommended)": "fast_1080p",
+            "Fast 720p MP4": "fast_720p",
+            "Source 4K/8K MP4 (Original Codec - Fast)": "source_raw",
+            "Source 4K MP4 (Re-encoded H.264)": "source_h264",
             "Audio Only MP3": "audio_mp3",
         }
         quality = q_map.get(self.quality_var.get(), "source")

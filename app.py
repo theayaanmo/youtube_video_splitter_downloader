@@ -189,37 +189,27 @@ if video_info and st.session_state.loaded_url:
         clip_len = 0.0
 
     st.markdown("### ⚙️ Output Format")
-    col_q, col_cut = st.columns(2)
-    with col_q:
-        quality_choice = st.selectbox(
-            "Quality / Format:",
-            options=[
-                "Source / Best Available MP4 (Up to 4K / 8K)",
-                "1080p Full HD (MP4)",
-                "720p HD (MP4)",
-                "Audio Only (MP3)",
-            ],
-            index=0,
-        )
-    with col_cut:
-        cut_mode = st.radio(
-            "Cutting Mode:",
-            options=[
-                "⚡ Fast Lossless Cut (Instant, lossless raw stream)",
-                "🎯 Frame-Accurate Cut (Exact keyframe match)",
-            ],
-            index=0,
-            help="Fast Lossless finishes in seconds without CPU re-encoding lag.",
-        )
+    quality_choice = st.selectbox(
+        "Quality Preset:",
+        options=[
+            "⚡ Fast MP4 (1080p Full HD - Recommended)",
+            "⚡ Fast MP4 (720p HD)",
+            "🎬 Source Quality MP4 (Up to 4K / 8K, Original Codec - Fast)",
+            "🔄 Source Quality MP4 (Up to 4K, Re-encoded H.264 - Slower)",
+            "🎵 Audio Only (MP3)",
+        ],
+        index=0,
+        help="Fast MP4 is instant and universally compatible. Source Quality keeps untouched 4K/8K resolution.",
+    )
 
     quality_map = {
-        "Source / Best Available MP4 (Up to 4K / 8K)": "source",
-        "1080p Full HD (MP4)": "1080p",
-        "720p HD (MP4)": "720p",
-        "Audio Only (MP3)": "audio_mp3",
+        "⚡ Fast MP4 (1080p Full HD - Recommended)": "fast_1080p",
+        "⚡ Fast MP4 (720p HD)": "fast_720p",
+        "🎬 Source Quality MP4 (Up to 4K / 8K, Original Codec - Fast)": "source_raw",
+        "🔄 Source Quality MP4 (Up to 4K, Re-encoded H.264 - Slower)": "source_h264",
+        "🎵 Audio Only (MP3)": "audio_mp3",
     }
     selected_quality = quality_map[quality_choice]
-    force_kf = "Frame-Accurate" in cut_mode
 
     # Download action
     if st.button("🚀 Download MP4 Clip Now", type="primary", use_container_width=True):
@@ -239,7 +229,6 @@ if video_info and st.session_state.loaded_url:
                         end_time=end_input,
                         output_dir=str(DOWNLOAD_DIR),
                         quality=selected_quality,
-                        force_keyframes=force_kf,
                     )
                     if saved_path and os.path.exists(saved_path):
                         st.session_state.downloaded_file = saved_path

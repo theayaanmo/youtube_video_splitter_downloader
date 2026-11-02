@@ -51,14 +51,21 @@ def interactive_mode():
     end_t = input("[3/4] Enter End Time   (e.g. 00:02:45 or 165): ").strip()
 
     print("\n[4/4] Choose Quality:")
-    print("  1. Best Source MP4 (Up to 4K / 8K)")
-    print("  2. 1080p Full HD MP4")
-    print("  3. 720p HD MP4")
-    print("  4. Audio Only MP3")
-    q_choice = input("Select (1-4, default 1): ").strip() or "1"
+    print("  1. Fast 1080p Full HD MP4 (Default, Fastest, Universal)")
+    print("  2. Fast 720p HD MP4")
+    print("  3. Source Quality 4K/8K MP4 (Original Codec, Fast)")
+    print("  4. Source Quality 4K MP4 (Re-encoded H.264, Universal)")
+    print("  5. Audio Only MP3")
+    q_choice = input("Select (1-5, default 1): ").strip() or "1"
     
-    q_map = {"1": "source", "2": "1080p", "3": "720p", "4": "audio_mp3"}
-    quality = q_map.get(q_choice, "source")
+    q_map = {
+        "1": "fast_1080p",
+        "2": "fast_720p",
+        "3": "source_raw",
+        "4": "source_h264",
+        "5": "audio_mp3",
+    }
+    quality = q_map.get(q_choice, "fast_1080p")
 
     out_dir = input("\nOutput Directory (default 'downloads'): ").strip() or "downloads"
 
@@ -84,9 +91,9 @@ def main():
     parser.add_argument("-e", "--end", help="End time (e.g. 00:02:45 or 165)")
     parser.add_argument(
         "-q", "--quality",
-        choices=["source", "1080p", "720p", "audio_mp3"],
-        default="source",
-        help="Quality preset (default: source)"
+        choices=["fast_1080p", "fast_720p", "source_raw", "source_h264", "audio_mp3", "1080p", "720p", "source"],
+        default="fast_1080p",
+        help="Quality preset (default: fast_1080p)"
     )
     parser.add_argument("-o", "--output", default="downloads", help="Output directory (default: downloads)")
 
